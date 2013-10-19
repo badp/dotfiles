@@ -1,0 +1,10 @@
+#!/bin/bash
+
+for repo in ~/ganeti-eng.wiki ~/ganeti.wiki ~/libvirt ~/linux ~/glusterfs ~/qemu
+do
+  echo -en "$repo: git fetch...                            \r"
+  cd $repo
+  git fetch -q
+  echo -en "$repo: git pull...                            \r"
+  git pull -q --ff-only
+done

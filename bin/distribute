@@ -1,0 +1,34 @@
+#!/bin/bash
+
+NUM_HOSTS=${#HOSTS[@]}
+
+if [[ $NUM_HOSTS -eq 0 || -z $1 ]]
+  then
+    echo "Usage: (I know, it's kind of awful.)"
+    echo "$ HOSTS=(wpeg{21..23}.hot wpeb{12..17}.fra) #or what have you"
+    echo "$ . distribute config.data /var/wherever/ #send to a specific place"
+    echo "$ . distribute my_file #send to ~"
+  else
+    if [ -z $2 ]
+      then
+        DEST="~"
+      else
+        DEST=$2
+    fi
+    echo "Distributing $1 to $NUM_HOSTS host(s) under $DEST: ${HOSTS[@]}"
+    echo
+    echo -n ' '; printf ' %.0s' "${HOSTS[@]}"; echo -ne "]\r"
+    echo -n [
+
+    for HOST in "${HOSTS[@]}"; do
+      if ! rsync $1 $HOST:$DEST
+        then
+          echo "F] Failed transfer to $HOST. :("
+          break
+      fi
+      echo -n "."
+    done
+
+    echo
+fi
+

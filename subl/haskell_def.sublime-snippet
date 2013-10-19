@@ -1,0 +1,10 @@
+<snippet>
+    <content><![CDATA[-- | ${4:Docstring}
+${1:varName} :: ${2:Type}
+${1:varName} = ${3:value}
+
+]]></content>
+    <tabTrigger>hsdef</tabTrigger>
+    <scope></scope>
+    <description>Public Haskell variable</description>
+</snippet>
