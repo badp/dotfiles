@@ -1,0 +1,97 @@
+#!/usr/bin/python
+
+from __future__ import print_function
+
+import subprocess
+import re
+import sys
+
+def runCmd(cmd):
+  return subprocess.Popen(cmd, stdout = subprocess.PIPE).stdout.readlines()
+
+git_explain_status = {
+  " M": "not updated",
+  " D": "not updated",
+  "M ": "updated in index",
+  "MM": "updated in index, only partially",
+  "MD": "updated in index, deleted in work tree",
+  "AM": "added to index, but only partially",
+  "AD": "added to index, deleted in work tree",
+  "D ": "deleted from index",
+  "DM": "deleted from index, modified in work tree",
+  "R ": "renamed in index",
+  "RM": "renamed in index, only partially staged",
+  "RD": "renamed in index, deleted in work tree",
+  "C ": "copied in index",
+  "CM": "copied in index, only partially staged",
+  "CD": "copied in index, deleted in work tree",
+  "DD": "unmerged: both deleted",
+  "AU": "unmerged: added by us",
+  "UD": "unmerged: deleted by them",
+  "UA": "unmerged: added by them",
+  "DU": "unmerged: deleted by us",
+  "AA": "unmerged: both added",
+  "UU": "unmerged: both modified",
+  "??": "untracked",
+  "!!": "ignored"
+}
+
+def getChangedFiles():
+  lines = runCmd(["git", "status", "--porcelain"])
+  # For now don't look at files partially added :/
+  for partial, status in ((line[3:].strip(),
+                           git_explain_status.get(line[:2], line[:2]))
+                          for line in lines
+                          if " M" != line[:2]):
+    print("%s: %s. Ignoring." % (partial, status), file=sys.stderr)
+  return [line[3:].strip() for line in lines if " M" == line[:2]]
+
+header_re = re.compile("@@ -(\d+),?(\d+)?.*@@ (.*)\(?.*\n")
+get_start_context = lambda x: re.match(header_re, x).groups()
+
+def blameChangedLines(file):
+  diff = runCmd(["git", "diff", "-U0", file])
+  headers = [(num, line) for num, line in enumerate(diff) if line.startswith("@@")]
+
+  print()
+  print("="*80)
+  print("=", file)
+  print("="*80)
+
+  header_pairs = zip(headers, headers[1:] + [(len(diff), None)])
+
+  for (num, line), (nextNum, _) in header_pairs:
+
+    start_line, num_lines, context = get_start_context(line)
+    if not num_lines:
+      # We have to count. :/
+      look_at_line = num+1
+      num_lines = 0
+      while not diff[look_at_line].startswith("+"):
+        num_lines += 1
+        look_at_line += 1
+
+    print
+#   print "-"*80
+#   print ("- %s - %s" % (file, context.strip()))[:80]
+#   print "-"*80
+
+    print("".join(diff[num:nextNum]))
+
+    if num_lines == "0":
+      print("Add-only chunk. Ownership of next line:")
+      num_lines = "1"
+
+    sys.stdout.flush()
+
+    output = runCmd(["git", "--no-pager", "blame", "HEAD", file,
+                    "-L", "%s,+%s" % (start_line, num_lines),
+                    "--date=short"])
+
+    output = [line.rstrip()[:80] for line in output]
+
+    print("\n".join(output))
+
+
+for file in getChangedFiles():
+  blameChangedLines(file)
