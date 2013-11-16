@@ -5,6 +5,17 @@ from __future__ import print_function
 import subprocess
 import re
 import sys
+import time
+import math
+
+try:
+  from fabulous.color import fg256, bg256, bold, underline
+  from fabulous.utils import term
+  width = term.width
+except Exception as  err:
+  fg256 = bg256 = lambda x, y: y
+  bold = underline = lambda x: x
+  width = 80
 
 def runCmd(cmd):
   return subprocess.Popen(cmd, stdout = subprocess.PIPE).stdout.readlines()
@@ -36,6 +47,13 @@ git_explain_status = {
   "!!": "ignored"
 }
 
+colors = {
+    "@": "#44F",
+    " ": "#888",
+    "+": "#0D0",
+    "-": "orange"
+  }
+
 def getChangedFiles():
   lines = runCmd(["git", "status", "--porcelain"])
   # For now don't look at files partially added :/
@@ -46,52 +64,121 @@ def getChangedFiles():
     print("%s: %s. Ignoring." % (partial, status), file=sys.stderr)
   return [line[3:].strip() for line in lines if " M" == line[:2]]
 
-header_re = re.compile("@@ -(\d+),?(\d+)?.*@@ (.*)\(?.*\n")
+header_re = re.compile("@@ -(\d+),?(\d+)? \+(\d+),?(\d+)? @@")
 get_start_context = lambda x: re.match(header_re, x).groups()
+
+date_re = re.compile("\d{4}-\d{2}-\d{2}")
+get_date = lambda x: re.findall(date_re, x)[0]
+
+def bound(x):
+  if x > 15: return 15
+  if x < 0:  return 0
+  return x
+
+def formatBlame(line, prefix):
+  commit, _, rest = line.partition(" ")
+  details, _, line = rest.partition(")")
+
+  date = time.mktime(time.strptime(get_date(details), "%Y-%m-%d"))
+  now = time.time()
+  color = int((math.log(now - date)))-12
+
+  red = hex(bound(8 + color))[-1]
+  gb  = hex(bound(8 - color))[-1]*2
+  details_color = "#%s%s" % (red, gb)
+  details = fg256(details_color, details[1:])
+
+  if commit.startswith("^"):
+    #This goes all the way to the first commit! Move the ^ where it doesn't hurt
+    commit = commit[1:] + "^"
+
+  if not re.match("0+", commit):
+    commit = fg256("#%s" % commit[:3], commit)
+  else:
+    commit = bold(fg256(details_color, "wd"))
+
+  annotation = commit + " " + details
+
+  space_annotation = 40
+  padding = " " * max(space_annotation - len(annotation), 0)
+  space_line = width - space_annotation - 2
+
+  line = line.rstrip()[:space_line]
+  line = fg256(colors[prefix], line)
+
+  prefix2 = prefix if prefix != " " else "="
+  prefix2 = fg256(colors[prefix], prefix2)
+
+  return "{p}{a}{_}{P}{l}".format(p = prefix, P = prefix2,
+                                  a = annotation, _ = padding, l = line)
+
+def formatDiff(line):
+  line = line.rstrip()
+  _line = line if not line.startswith("@") else underline(line)
+  return fg256(colors[line[0]], _line)
+
+def showHeader(text, filler="="):
+  print()
+  print(fg256("#444", filler*width))
+  print(fg256("#444", filler), bold(text))
+  print(fg256("#444", filler*width))
+
+def showBlame(file, start_line, num_lines, revision="HEAD", prefix=""):
+
+    with open(file) as foo:
+      total_num_lines = len(foo.readlines())
+
+    if start_line + num_lines > total_num_lines:
+      # We are asking for context that gototal_num_lineses beyond the end of file
+      num_lines = total_num_lines - start_line - 1
+
+    if num_lines == 0:
+      return
+
+    if not 0 < start_line < total_num_lines:
+      return
+
+    command = ["git", "--no-pager", "blame", revision, file,
+               "-L", "%d,+%d" % (start_line, num_lines),
+               "--date=short"]
+    output = runCmd([arg for arg in command if arg])
+
+    output = [formatBlame(line, prefix) for line in output]
+
+    for line in output:
+      print(line)
 
 def blameChangedLines(file):
   diff = runCmd(["git", "diff", "-U0", file])
   headers = [(num, line) for num, line in enumerate(diff) if line.startswith("@@")]
 
-  print()
-  print("="*80)
-  print("=", file)
-  print("="*80)
+  showHeader(file)
 
   header_pairs = zip(headers, headers[1:] + [(len(diff), None)])
 
   for (num, line), (nextNum, _) in header_pairs:
 
-    start_line, num_lines, context = get_start_context(line)
-    if not num_lines:
-      # We have to count. :/
-      look_at_line = num+1
-      num_lines = 0
-      while not diff[look_at_line].startswith("+"):
-        num_lines += 1
-        look_at_line += 1
+    print(formatDiff(line))
+    start_line, num_lines, new_start_line, new_num_lines = get_start_context(line)
 
-    print
-#   print "-"*80
-#   print ("- %s - %s" % (file, context.strip()))[:80]
-#   print "-"*80
+    start_line = int(start_line)
+    new_start_line = int(new_start_line)
+    num_lines = int(num_lines) if num_lines is not None else 1
+    new_num_lines = int(new_num_lines) if new_num_lines is not None else 1
 
-    print("".join(diff[num:nextNum]))
+    context = 3
 
-    if num_lines == "0":
-      print("Add-only chunk. Ownership of next line:")
-      num_lines = "1"
+    if num_lines == 0:
+      showBlame(file, start_line - context + 1, context, prefix=" ")
+      showBlame(file, new_start_line, new_num_lines, revision="", prefix="+")
+      showBlame(file, start_line + 1, context, prefix=" ")
+    else:
+      showBlame(file, start_line - context, context, prefix=" ")
+      showBlame(file, start_line    , num_lines, prefix="-")
+      showBlame(file, new_start_line, new_num_lines, revision="", prefix="+")
+      showBlame(file, start_line + num_lines, context, prefix=" ")
 
     sys.stdout.flush()
-
-    output = runCmd(["git", "--no-pager", "blame", "HEAD", file,
-                    "-L", "%s,+%s" % (start_line, num_lines),
-                    "--date=short"])
-
-    output = [line.rstrip()[:80] for line in output]
-
-    print("\n".join(output))
-
 
 for file in getChangedFiles():
   blameChangedLines(file)
