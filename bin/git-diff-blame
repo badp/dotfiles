@@ -6,7 +6,10 @@ import subprocess
 import re
 import sys
 import time
+from datetime import date, timedelta
 import math
+import functools
+
 
 try:
   from fabulous.color import fg256, bg256, bold, underline
@@ -17,23 +20,37 @@ except Exception as  err:
   bold = underline = lambda x: x
   width = 80
 
+#https://wiki.python.org/moin/PythonDecoratorLibrary#Memoize
+def memoize(obj):
+    cache = obj.cache = {}
+
+    @functools.wraps(obj)
+    def memoizer(*args, **kwargs):
+        key = str(args) + str(kwargs)
+        if key not in cache:
+            cache[key] = obj(*args, **kwargs)
+        return cache[key]
+    return memoizer
+
+@memoize
 def runCmd(cmd):
   return subprocess.Popen(cmd, stdout = subprocess.PIPE).stdout.readlines()
 
 git_explain_status = {
   " M": "not updated",
   " D": "not updated",
+  "A ": "added to index",
   "M ": "updated in index",
+  "D ": "deleted from index",
+  "R ": "renamed in index",
+  "C ": "copied in index",
   "MM": "updated in index, only partially",
   "MD": "updated in index, deleted in work tree",
   "AM": "added to index, but only partially",
   "AD": "added to index, deleted in work tree",
-  "D ": "deleted from index",
   "DM": "deleted from index, modified in work tree",
-  "R ": "renamed in index",
   "RM": "renamed in index, only partially staged",
   "RD": "renamed in index, deleted in work tree",
-  "C ": "copied in index",
   "CM": "copied in index, only partially staged",
   "CD": "copied in index, deleted in work tree",
   "DD": "unmerged: both deleted",
@@ -75,13 +92,34 @@ def bound(x):
   if x < 0:  return 0
   return x
 
+color_fun = lambda days: int(math.log(days)/math.log(1.7)) - 6
+dayOf = lambda details: date.fromtimestamp(
+                          time.mktime(
+                            time.strptime(
+                              get_date(details), "%Y-%m-%d")))
+
+# for i in range(1, 5, 1) + \
+#          range(5, 5**2, 5) + \
+#          range(5**2, 5**3, 5**2) + \
+#          range(5**3, 5**4, 5**3) + \
+#          range(5**4, 5**5, 5**4):
+#   idx = color_fun(i)
+#   red = hex(bound(8 + idx))[-1]
+#   gb  = hex(bound(8 - idx))[-1]*2
+#   color = "#%s%s" % (red, gb)
+#   print(fg256(color, str(date.today() - timedelta(days=i)), " ",
+#         "%4d" % i, " days ago ",
+#         "%2d" % bound(idx + 8), " age class ",
+#         color))
+
 def formatBlame(line, prefix):
   commit, _, rest = line.partition(" ")
   details, _, line = rest.partition(")")
 
-  date = time.mktime(time.strptime(get_date(details), "%Y-%m-%d"))
-  now = time.time()
-  color = int((math.log(now - date)))-12
+  then = dayOf(details)
+  now = date.today()
+  delta = (now - then).days + 1
+  color = color_fun(delta)
 
   red = hex(bound(8 + color))[-1]
   gb  = hex(bound(8 - color))[-1]*2
@@ -92,7 +130,7 @@ def formatBlame(line, prefix):
     #This goes all the way to the first commit! Move the ^ where it doesn't hurt
     commit = commit[1:] + "^"
 
-  if not re.match("0+", commit):
+  if commit != "00000000":
     commit = fg256("#%s" % commit[:3], commit)
   else:
     commit = bold(fg256(details_color, "wd"))
@@ -125,21 +163,24 @@ def showHeader(text, filler="="):
 
 def showBlame(file, start_line, num_lines, revision="HEAD", prefix=""):
 
-    with open(file) as foo:
-      total_num_lines = len(foo.readlines())
+    end_line = start_line + num_lines - 1
 
-    if start_line + num_lines > total_num_lines:
-      # We are asking for context that gototal_num_lineses beyond the end of file
-      num_lines = total_num_lines - start_line - 1
+    if revision == "":
+      with open(file) as foo:
+        total_num_lines = len(foo.readlines())
+    else:
+      command = ["git", "--no-pager", "show",
+                 "%s:%s" % (revision, file)]
+      output = runCmd([arg for arg in command if arg])
+      total_num_lines = len(output)
 
-    if num_lines == 0:
-      return
-
-    if not 0 < start_line < total_num_lines:
+    # Don't go beyond the end of the file
+    end_line = min(end_line, total_num_lines)
+    if start_line > end_line:
       return
 
     command = ["git", "--no-pager", "blame", revision, file,
-               "-L", "%d,+%d" % (start_line, num_lines),
+               "-L", "%d,%d" % (start_line, end_line),
                "--date=short"]
     output = runCmd([arg for arg in command if arg])
 
@@ -149,7 +190,7 @@ def showBlame(file, start_line, num_lines, revision="HEAD", prefix=""):
       print(line)
 
 def blameChangedLines(file):
-  diff = runCmd(["git", "diff", "-U0", file])
+  diff = runCmd(["git", "diff", '--color=never', "-U0", file])
   headers = [(num, line) for num, line in enumerate(diff) if line.startswith("@@")]
 
   showHeader(file)
@@ -174,11 +215,13 @@ def blameChangedLines(file):
       showBlame(file, start_line + 1, context, prefix=" ")
     else:
       showBlame(file, start_line - context, context, prefix=" ")
-      showBlame(file, start_line    , num_lines, prefix="-")
+      showBlame(file, start_line, num_lines, prefix="-")
       showBlame(file, new_start_line, new_num_lines, revision="", prefix="+")
       showBlame(file, start_line + num_lines, context, prefix=" ")
 
     sys.stdout.flush()
 
-for file in getChangedFiles():
-  blameChangedLines(file)
+if __name__ == "__main__":
+  subprocess.Popen(["git", "--no-pager", "diff", "--stat"])
+  for file in getChangedFiles():
+    blameChangedLines(file)
