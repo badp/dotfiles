@@ -1,0 +1,70 @@
+#!/usr/bin/python
+
+from __future__ import division
+import functools
+import subprocess
+import re
+
+try:
+  from fabulous.color import fg256, bg256, bold, underline
+  from fabulous.utils import term
+  width = term.width
+except Exception as  err:
+  fg256 = bg256 = lambda x, y: y
+  bold = underline = lambda x: x
+  width = 80
+
+def runCmd(cmd):
+  output = subprocess.Popen(cmd, stdout = subprocess.PIPE).stdout.readlines()
+  return [line[:-1] for line in output]
+
+author_re = re.compile(" \((.+?) \d{4}")
+get_author = lambda x: re.findall(author_re, x)[0]
+
+def formatPercent(pct):
+  text = "%4.1f%%" % pct
+  bar = bg256("white", fg256("white", "+" * int(pct/3)))
+  return text + " " + bar
+
+def getFrequencies(items):
+  frequencies = {}
+  step = 100/len(items)
+  for item in items:
+    frequencies[item] = frequencies.get(item, 0) + step
+  ordered = sorted(frequencies, key=lambda k: -frequencies[k])
+  return frequencies, ordered
+
+def runBlame(file, verbose=False):
+  command = ["git", "--no-pager", "blame", file]
+  output = runCmd(command)
+  if len(output) != 0:
+    authors = map(get_author, output)
+  else:
+    #Somebody must've emptied it!
+    authors = runCmd(["git", "log", "-1", '--pretty=%aN', file])
+  author_frequencies, result = getFrequencies(authors)
+  if verbose:
+    for author in result:
+      print author, formatPercent(author_frequencies[author])
+  else:
+    return result[0].rstrip()
+
+if __name__ == "__main__":
+  import sys
+  if len(sys.argv) == 2:
+    runBlame(sys.argv[1], verbose=True)
+  else:
+    files = runCmd(["git", "ls-files"])
+    assert len(files) > 0
+    owners = []
+    for file in files:
+      print "[%5d]" % (len(owners) - len(files)),
+      print file, " "*20,
+      print "\r",
+      sys.stdout.flush()
+      owners.append(runBlame(file))
+    owner_frequencies, result = getFrequencies(owners)
+    for owner in result:
+      print "%20s" % owner[:20], formatPercent(owner_frequencies[owner])
+
+
