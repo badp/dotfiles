@@ -1,0 +1,35 @@
+{
+    "max-line-length": 80,
+
+    // list codes for fixes; used by --ignore and --select
+    "list-fixes": "",
+
+    // do not fix these errors / warnings(e.g. E4, W)
+    "ignore": "E24,E226,E111,E121,E125,E127,E261,E501",
+
+    // select errors / warnings(e.g. E4, W)
+    "select": "",
+
+    // enable possibly unsafe changes (E711, E712)
+    "aggressive": 0,
+
+    // verbose level
+    "verbose": 1,
+
+    "format_on_save": false,
+    "show_output_panel": true,
+    // show panel with message: no issues to fixed
+    "show_empty_panel": false,
+    "max-threads": 5,
+    // Format/Preview menu items only appear for views
+    // with syntax from `syntax_list`
+    // value is base filename of the .tmLanguage syntax files
+    "syntax_list": ["Python"],
+
+    // Behaviour for right click context menu (Format/Preview PEP8)
+    // "always": menu appears always, even folder doesn't contain *.py files
+    // "never":  menu never appears
+    // "ifneed": menu appears only if path or childs contain *.py file
+    "file_menu_behaviour": "ifneed",
+    "file_menu_search_depth": 3  // max search depth, uses for 'ifneed' mode
+}

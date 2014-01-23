@@ -1,0 +1,24 @@
+{
+	"installed_packages":
+	[
+		"fish-shell",
+		"Git",
+		"GitGutter",
+		"MarkdownEditing",
+		"Mediawiker",
+		"Monokai Extended",
+		"Pretty JSON",
+		"SublimeGit",
+		"SublimePythonIDE",
+		"SublimeREPL",
+		"Theme - Cobalt2",
+		"Theme - Nil",
+		"TrailingSpaces",
+		"TWiki",
+		"UnicodeMath",
+		"Wrap Plus"
+	],
+	"repositories":
+	[
+	]
+}
