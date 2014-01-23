@@ -1,0 +1,6 @@
+{
+  "shell_cmd": "schroot -r -c work -- make py-coverage lint",
+  "working_dir": "/usr/local/google/home/rsanti/ganeti/",
+  "file_regex": "(?:[ ]*File \"(?:/tmp/gntbuild.+?/))?(...*?)[:\"](?:, line )?([0-9]+)",
+  "line_regex": "^make: .* Error [0-9]+$"
+}
