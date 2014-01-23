@@ -39,7 +39,6 @@
 	"font_face": "WenQuanYi Zen Hei Mono",
 	"font_size": 14,
 	"highlight_line": true,
-	"hot_exit": false,
 	"ignored_packages":
 	[
 		"SublimeGit",
