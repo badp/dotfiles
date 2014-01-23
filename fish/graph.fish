@@ -1,9 +1,9 @@
 function graph
   switch (git --version | cut -f3 -d' ' | cut -f1,2 -d.)
     case 1.7
-        set -g __fish_graph_pretty "%C(yellow)%h%C(cyan)%d %C(green)%an %C(reset)%s"
+        set -g __fish_graph_pretty "%C(yellow)%h%C(cyan)%d %C(green)%aN %C(reset)%s"
     case '*'
-        set -g __fish_graph_pretty "%C(yellow)%h%C(auto)%d %C(green)%an %C(reset)%s"
+        set -g __fish_graph_pretty "%C(yellow)%h%C(auto)%d %C(green)%<(6,trunc)%aN %C(reset)%s"
   end
 
   switch argv
@@ -18,6 +18,7 @@ function graph
         --graph \
         --left-right \
         --all \
-        --pretty=format:$__fish_graph_pretty
+        --pretty=format:$__fish_graph_pretty \
+        --topo-order
   end
 end
