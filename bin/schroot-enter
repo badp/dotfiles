@@ -1,5 +1,0 @@
-#!/bin/bash
-SESSION=$1
-if [ -z $SESSION ]; then SESSION=master; fi
-schroot -r -c $SESSION
-

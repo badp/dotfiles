@@ -1,3 +1,0 @@
-#!/bin/bash
-#schroot -b -n work -c squeeze-amd64
-schroot -b -n master -c squeeze-amd64-2.10
