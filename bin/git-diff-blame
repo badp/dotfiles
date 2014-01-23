@@ -20,6 +20,11 @@ except Exception as  err:
   bold = underline = lambda x: x
   width = 80
 
+python = sys.version_info[0]
+if python == 3:
+  def unicode(data, encoding, errors):
+    return data.decode(encoding, errors)
+
 #https://wiki.python.org/moin/PythonDecoratorLibrary#Memoize
 def memoize(obj):
     cache = obj.cache = {}
@@ -34,7 +39,9 @@ def memoize(obj):
 
 @memoize
 def runCmd(cmd):
-  return subprocess.Popen(cmd, stdout = subprocess.PIPE).stdout.readlines()
+  lines = subprocess.Popen(cmd, stdout = subprocess.PIPE).stdout.readlines()
+  lines = [unicode(line, "utf-8", "replace") for line in lines]
+  return lines
 
 git_explain_status = {
   " M": "not updated",
@@ -147,8 +154,8 @@ def formatBlame(line, prefix):
   prefix2 = prefix if prefix != " " else "="
   prefix2 = fg256(colors[prefix], prefix2)
 
-  return "{p}{a}{_}{P}{l}".format(p = prefix, P = prefix2,
-                                  a = annotation, _ = padding, l = line)
+  return u"{p}{a}{_}{P}{l}".format(p = prefix, P = prefix2,
+                                   a = annotation, _ = padding, l = line)
 
 def formatDiff(line):
   line = line.rstrip()
@@ -187,7 +194,7 @@ def showBlame(file, start_line, num_lines, revision="HEAD", prefix=""):
     output = [formatBlame(line, prefix) for line in output]
 
     for line in output:
-      print(line)
+      print(line.encode("utf-8"))
 
 def blameChangedLines(file):
   diff = runCmd(["git", "diff", '--color=never', "-U0", file])
