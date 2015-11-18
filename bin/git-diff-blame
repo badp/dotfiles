@@ -186,6 +186,8 @@ def showBlame(file, start_line, num_lines, revision="HEAD", prefix=""):
       output = runCmd([arg for arg in command if arg])
       total_num_lines = len(output)
 
+    # Don't go before the start of the file
+    start_line = max(1, start_line)
     # Don't go beyond the end of the file
     end_line = min(end_line, total_num_lines)
     if start_line > end_line:
