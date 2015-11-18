@@ -5,6 +5,7 @@ from __future__ import print_function
 import subprocess
 import re
 import sys
+import os
 import time
 from datetime import date, timedelta
 import math
@@ -79,6 +80,10 @@ colors = {
   }
 
 def getChangedFiles():
+  # chdir to the root of the repo
+  # git status --porcelain will always give 'absolute' paths
+  os.chdir(runCmd(["git", "rev-parse", "--show-toplevel"])[0].strip())
+
   lines = runCmd(["git", "status", "--porcelain"])
   # For now don't look at files partially added :/
   for partial, status in ((line[3:].strip(),
